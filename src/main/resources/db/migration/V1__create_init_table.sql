@@ -1,25 +1,26 @@
 -- 사용자 테이블
 CREATE TABLE user
 (
-    id         BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '사용자 고유 ID',
-    user_id    VARCHAR(50) UNIQUE NOT NULL COMMENT '로그인용 사용자 ID',
-    password   VARCHAR(255)       NOT NULL COMMENT '비밀번호 (암호화 저장)',
-    name       VARCHAR(100) COMMENT '실명',
-    nickname   VARCHAR(100) COMMENT '닉네임',
-    email      VARCHAR(255) COMMENT '이메일 주소',
-    about      TEXT COMMENT '자기 소개',
-    enabled    BOOLEAN     DEFAULT TRUE COMMENT '계정 활성화 여부',
-    point      INT         DEFAULT 0 COMMENT '포인트',
-    role       VARCHAR(20) DEFAULT 'USER' COMMENT '역할 (USER, ADMIN 등)',
-    created_at DATETIME    DEFAULT CURRENT_TIMESTAMP COMMENT '생성일시',
-    updated_at DATETIME    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '수정일시'
+    id           BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '사용자 고유 ID',
+    user_id      VARCHAR(50) UNIQUE NOT NULL COMMENT '로그인용 사용자 ID',
+    password     VARCHAR(255)       NOT NULL COMMENT '비밀번호 (암호화 저장)',
+    name         VARCHAR(100)       NOT NULL COMMENT '실명',
+    nickname     VARCHAR(100)       NOT NULL COMMENT '닉네임',
+    email        VARCHAR(255)       NOT NULL COMMENT '이메일 주소',
+    phone_number VARCHAR(20) COMMENT '휴대폰 번호',
+    about        VARCHAR(255) COMMENT '자기 소개',
+    enabled      BOOLEAN  DEFAULT TRUE COMMENT '계정 활성화 여부',
+    point        INT      DEFAULT 0 COMMENT '포인트',
+    created_at   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '생성일시',
+    updated_at   DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '수정일시'
 ) COMMENT ='사용자 정보 테이블';
 
 CREATE TABLE user_auth
 (
+    id      BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '고유 ID',
     user_id BIGINT      NOT NULL COMMENT '사용자 ID',
-    auth    VARCHAR(50) NOT NULL COMMENT '권한 이름 (예: ROLE_USER, ROLE_ADMIN)',
-    PRIMARY KEY (user_id, auth)
+    auth    VARCHAR(50) NOT NULL COMMENT '권한 (ROLE_USER 등)',
+    UNIQUE KEY uq_user_auth (user_id, auth)
 ) COMMENT ='사용자 권한 매핑 테이블';
 
 -- 닉네임 변경 이력
@@ -29,7 +30,7 @@ CREATE TABLE nickname_history
     user_id      BIGINT NOT NULL COMMENT '사용자 ID',
     old_nickname VARCHAR(100) COMMENT '이전 닉네임',
     new_nickname VARCHAR(100) COMMENT '새 닉네임',
-    changed_at   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '변경일시'
+    updated_at   DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '수정일시'
 ) COMMENT ='닉네임 변경 이력';
 
 -- 리프레시 토큰
@@ -60,7 +61,7 @@ CREATE TABLE board
 (
     id          BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '게시글 ID',
     title       VARCHAR(255) NOT NULL COMMENT '제목',
-    content     TEXT COMMENT '내용',
+    content     MEDIUMTEXT COMMENT '내용',
     user_id     BIGINT       NOT NULL COMMENT '작성자 ID',
     nickname    VARCHAR(100) COMMENT '작성자 닉네임',
     category_id BIGINT COMMENT '카테고리 ID',
@@ -77,14 +78,14 @@ CREATE TABLE board
 CREATE TABLE reply
 (
     id              BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '댓글 ID',
+    user_id         BIGINT NOT NULL COMMENT '작성자 ID',
     board_id        BIGINT NOT NULL COMMENT '게시글 ID',
-    writer_id       BIGINT NOT NULL COMMENT '작성자 ID',
-    nickname        VARCHAR(100) COMMENT '작성자 닉네임',
     content         TEXT COMMENT '댓글 내용',
     parent_id       BIGINT COMMENT '부모 댓글 ID (NULL이면 1뎁스)',
     depth           INT      DEFAULT 0 COMMENT '댓글 깊이 (0=부모, 1=자식)', -- ✅ CHECK 제거
     mention_user_id BIGINT COMMENT '자식댓글일 경우, 언급된 부모댓글 작성자 ID',
     good_count      INT      DEFAULT 0 COMMENT '좋아요 수',
+    bad_count       INT      DEFAULT 0 COMMENT '싫어요 수',
     use_yn          BOOLEAN  DEFAULT TRUE COMMENT '사용 여부',
     created_at      DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '작성일',
     updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '수정일'
@@ -96,7 +97,7 @@ CREATE TABLE board_like
     id         BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '좋아요 ID',
     board_id   BIGINT      NOT NULL COMMENT '게시글 ID',
     user_id    BIGINT      NOT NULL COMMENT '사용자 ID',
-    status     VARCHAR(10) NOT NULL COMMENT 'LIKE 또는 DISLIKE',
+    type       VARCHAR(10) NOT NULL COMMENT 'LIKE 또는 DISLIKE',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '생성일',
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '수정일'
 ) COMMENT ='게시글 좋아요/싫어요';
@@ -105,8 +106,9 @@ CREATE TABLE board_like
 CREATE TABLE reply_like
 (
     id         BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '댓글 좋아요 ID',
-    reply_id   BIGINT NOT NULL COMMENT '댓글 ID',
-    user_id    BIGINT NOT NULL COMMENT '사용자 ID',
+    reply_id   BIGINT      NOT NULL COMMENT '댓글 ID',
+    user_id    BIGINT      NOT NULL COMMENT '사용자 ID',
+    type       VARCHAR(10) NOT NULL COMMENT 'LIKE 또는 DISLIKE',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '생성일',
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '수정일'
 ) COMMENT ='댓글 좋아요';
@@ -161,16 +163,25 @@ CREATE TABLE notice
 ) COMMENT ='공지사항 게시판';
 
 -- 첨부 파일
-CREATE TABLE file
+CREATE TABLE board_file
 (
     id          BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '파일 ID',
-    board_id    BIGINT COMMENT '게시글 ID',
-    reply_id    BIGINT COMMENT '댓글 ID',
+    board_id    BIGINT NOT NULL COMMENT '게시글 ID',
     uploader_id BIGINT COMMENT '업로더 ID',
     file_path   VARCHAR(255) COMMENT '파일 경로',
     file_type   VARCHAR(50) COMMENT '파일 타입',
     created_at  DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '업로드 일시'
-) COMMENT ='게시글/댓글 첨부파일 테이블';
+) COMMENT ='게시글 첨부파일 테이블';
+
+CREATE TABLE reply_file
+(
+    id          BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '파일 ID',
+    reply_id    BIGINT NOT NULL COMMENT '댓글 ID',
+    uploader_id BIGINT COMMENT '업로더 ID',
+    file_path   VARCHAR(255) COMMENT '파일 경로',
+    file_type   VARCHAR(50) COMMENT '파일 타입',
+    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '업로드 일시'
+) COMMENT ='댓글 첨부파일 테이블';
 
 
 
